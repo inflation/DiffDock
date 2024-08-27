@@ -126,3 +126,5 @@ local_config_inference2.yml
 *.zip
 
 .idea/
+
+.venv/

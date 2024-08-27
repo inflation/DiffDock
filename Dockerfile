@@ -1,7 +1,7 @@
 # Stage 1: Build Environment Setup
-FROM nvidia/cuda:11.7.1-devel-ubuntu22.04 as builder
+FROM nvidia/cuda:11.7.1-devel-ubuntu22.04 AS builder
 
-RUN apt-get update -y && apt-get install -y wget curl git tar bzip2 unzip && rm -rf /var/lib/apt/lists/*
+RUN apt-get update -y && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
 # Create a user
 ENV APPUSER="appuser"
@@ -13,17 +13,21 @@ WORKDIR $HOME
 ENV ENV_NAME="diffdock"
 ENV DIR_NAME="DiffDock"
 
-# Install micromamba
-RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xj bin/micromamba
-ENV PATH=$HOME/bin:$HOME/.local/bin:$PATH
+# Setup uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Copy and create Conda environment
-ENV ENV_FILE_NAME=environment.yml
-COPY --chown=$APPUSER:$APPUSER ./$ENV_FILE_NAME .
-RUN ~/bin/micromamba env create --file $ENV_FILE_NAME && ~/bin/micromamba clean -afy --quiet
+WORKDIR $HOME/$DIR_NAME
+ADD uv.lock uv.lock
+ADD pyproject.toml pyproject.toml
+
+ENV CC=gcc CXX=g++
+RUN uv sync --frozen --compile-bytecode --no-install-project
 
 # Copy application code
 COPY --chown=$APPUSER:$APPUSER . $HOME/$DIR_NAME
+
+# Install dependencies
+RUN uv sync --frozen --compile-bytecode
 
 # Download models
 # These should download automatically on first inference
@@ -33,7 +37,7 @@ COPY --chown=$APPUSER:$APPUSER . $HOME/$DIR_NAME
 
 
 # Stage 2: Runtime Environment
-FROM nvidia/cuda:11.7.1-runtime-ubuntu22.04
+FROM ubuntu:22.04
 
 # Create user and setup environment
 ENV APPUSER="appuser"
@@ -45,22 +49,19 @@ WORKDIR $HOME
 ENV ENV_NAME="diffdock"
 ENV DIR_NAME="DiffDock"
 
-# Copy the Conda environment and application code from the builder stage
-COPY --from=builder --chown=$APPUSER:$APPUSER $HOME/micromamba $HOME/micromamba
-COPY --from=builder --chown=$APPUSER:$APPUSER $HOME/bin $HOME/bin
+# Copy uv and application code from the builder stage
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 COPY --from=builder --chown=$APPUSER:$APPUSER $HOME/$DIR_NAME $HOME/$DIR_NAME
 WORKDIR $HOME/$DIR_NAME
 
-# Set the environment variables
-ENV MAMBA_ROOT_PREFIX=$HOME/micromamba
-ENV PATH=$HOME/bin:$HOME/.local/bin:$PATH
-RUN micromamba shell init -s bash --root-prefix $MAMBA_ROOT_PREFIX
+RUN uv python install 3.10
+RUN ln -sf $(uv python find 3.10) $HOME/$DIR_NAME/.venv/bin/python 
 
 # Precompute series for SO(2) and SO(3) groups
-RUN micromamba run -n ${ENV_NAME} python utils/precompute_series.py
+RUN .venv/bin/python utils/precompute_series.py
 
 # Expose ports for streamlit and gradio
 EXPOSE 7860 8501
 
 # Default command
-CMD ["sh", "-c", "micromamba run -n ${ENV_NAME} python utils/print_device.py"]
+CMD [".venv/bin/python", "utils/print_device.py"]

@@ -1,0 +1,44 @@
+[project]
+name = "diffdock"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.10"
+dependencies = [
+    "torch==1.13.1+cu117",
+    "e3nn==0.5.1",
+    "fair-esm[esmfold]==2.0.0",
+    "networkx==3.3",
+    "pandas==2.0.3",
+    "prody==2.4.1",
+    "pybind11==2.13.5",
+    "rdkit==2024.3.5",
+    "scikit-learn==1.5.1",
+    "scipy==1.14.1",
+    "torch==1.13.1+cu117",
+    "torch-cluster==1.6.0+pt113cu117",
+    "torch-geometric==2.2.0",
+    "torch-scatter==2.1.0+pt113cu117",
+    "torch-sparse==0.6.16+pt113cu117",
+    "torch-spline-conv==1.2.1+pt113cu117",
+    "torchmetrics==1.4.1",
+    "gradio==3.50.*",
+    "requests>=2.32.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.uv.sources]
+dllogger = { git = "https://github.com/NVIDIA/dllogger.git" }
+openfold = { git = "https://github.com/aqlaboratory/openfold.git", rev = "4b41059694619831a7db195b7e0988fc4ff3a307" }
+
+[tool.uv]
+extra-index-url = ["https://download.pytorch.org/whl/cu117"]
+find-links = ["https://pytorch-geometric.com/whl/torch-1.13.1+cu117.html"]
+index-strategy = "unsafe-best-match"
+no-build-isolation-package = ["openfold"]
